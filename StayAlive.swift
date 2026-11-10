@@ -49,6 +49,9 @@ final class Awake: ObservableObject {
         }
         post(.mouseMoved, CGPoint(x: pos.x + 1, y: pos.y))
         post(.mouseMoved, pos)
+        // Never click our own window, or the click would hit the power button and switch us off.
+        let overOwnWindow = NSApp.windows.contains { $0.isVisible && $0.frame.contains(NSEvent.mouseLocation) }
+        guard !overOwnWindow else { return }
         post(.leftMouseDown, pos)
         post(.leftMouseUp, pos)
     }

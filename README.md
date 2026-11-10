@@ -38,7 +38,8 @@ the app in place, so the Dock pin keeps working.
   Teams showing you as available. It needs **Accessibility** permission (System Settings →
   Privacy & Security → Accessibility); the app asks the first time you turn it on. Without it,
   only the screen-awake part works.
-- Park the cursor somewhere harmless (e.g. an empty desktop area) since it will click there.
+- Park the cursor somewhere harmless (e.g. an empty desktop area) since it will click there. It never clicks on its own window, so leaving the cursor on the
+  power button is safe.
 - Closing the window keeps the app (and its current state) running; click the Dock icon to
   bring it back.
 - Quitting the app (**⌘Q**) always turns it off, so your Mac goes back to normal sleep.
