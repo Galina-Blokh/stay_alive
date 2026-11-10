@@ -28,9 +28,11 @@ final class Awake: ObservableObject {
         // Posting synthetic input requires the Accessibility permission.
         let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         needsAccessibility = !AXIsProcessTrustedWithOptions(opts)
-        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+        let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             self?.simulateActivity()
         }
+        RunLoop.main.add(t, forMode: .common) // keep firing while a menu is open
+        timer = t
     }
 
     // Nudges the mouse 1 px and back, then clicks at the cursor. Skipped while the user is active.
@@ -43,8 +45,8 @@ final class Awake: ObservableObject {
 
         // A held button (e.g. a paused drag) generates no events, so it looks idle: leave it alone.
         let modifiers = CGEventSource.flagsState(.combinedSessionState)
-        let anyButtonHeld = [CGMouseButton.left, .right, .center].contains {
-            CGEventSource.buttonState(.combinedSessionState, button: $0)
+        let anyButtonHeld = (0..<32).contains {
+            CGEventSource.buttonState(.combinedSessionState, button: CGMouseButton(rawValue: UInt32($0))!)
         }
         guard !anyButtonHeld,
               modifiers.intersection([.maskControl, .maskShift, .maskCommand, .maskAlternate]).isEmpty,
