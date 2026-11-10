@@ -43,7 +43,10 @@ final class Awake: ObservableObject {
 
         // A held button (e.g. a paused drag) generates no events, so it looks idle: leave it alone.
         let modifiers = CGEventSource.flagsState(.combinedSessionState)
-        guard !CGEventSource.buttonState(.combinedSessionState, button: .left),
+        let anyButtonHeld = [CGMouseButton.left, .right, .center].contains {
+            CGEventSource.buttonState(.combinedSessionState, button: $0)
+        }
+        guard !anyButtonHeld,
               modifiers.intersection([.maskControl, .maskShift, .maskCommand, .maskAlternate]).isEmpty,
               let pos = CGEvent(source: nil)?.location else { return }
         let src = CGEventSource(stateID: .hidSystemState)
