@@ -1,10 +1,17 @@
 import SwiftUI
 import IOKit.pwr_mgt
+import ApplicationServices
 
-// Holds an IOKit power assertion that prevents the display from sleeping.
+// Holds an IOKit power assertion that prevents the display from sleeping, and periodically
+// sends a tiny mouse nudge plus a click so apps like Teams still see the user as active.
 final class Awake: ObservableObject {
     @Published private(set) var isOn = false
+    @Published private(set) var needsAccessibility = false
     private var assertionID: IOPMAssertionID = 0
+    private var timer: Timer?
+
+    private let interval: TimeInterval = 60      // how often to simulate activity
+    private let idleThreshold: TimeInterval = 50 // only act if the user has been idle this long
 
     func toggle() { isOn ? stop() : start() }
 
@@ -16,12 +23,43 @@ final class Awake: ObservableObject {
             "Stay Alive is keeping the screen on" as CFString,
             &assertionID)
         isOn = (result == kIOReturnSuccess)
+        guard isOn else { return }
+
+        // Posting synthetic input requires the Accessibility permission.
+        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        needsAccessibility = !AXIsProcessTrustedWithOptions(opts)
+        timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
+            self?.simulateActivity()
+        }
+    }
+
+    // Nudges the mouse 1 px and back, then clicks at the cursor. Skipped while the user is active.
+    private func simulateActivity() {
+        needsAccessibility = !AXIsProcessTrusted()
+        guard !needsAccessibility else { return }
+        let anyInput = CGEventType(rawValue: ~0)!
+        guard CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyInput) >= idleThreshold
+        else { return }
+
+        guard let pos = CGEvent(source: nil)?.location else { return }
+        let src = CGEventSource(stateID: .hidSystemState)
+        func post(_ type: CGEventType, _ p: CGPoint) {
+            CGEvent(mouseEventSource: src, mouseType: type, mouseCursorPosition: p, mouseButton: .left)?
+                .post(tap: .cghidEventTap)
+        }
+        post(.mouseMoved, CGPoint(x: pos.x + 1, y: pos.y))
+        post(.mouseMoved, pos)
+        post(.leftMouseDown, pos)
+        post(.leftMouseUp, pos)
     }
 
     func stop() {
         guard isOn else { return }
+        timer?.invalidate()
+        timer = nil
         IOPMAssertionRelease(assertionID)
         isOn = false
+        needsAccessibility = false
     }
 }
 
@@ -47,9 +85,16 @@ struct ContentView: View {
             Text(awake.isOn ? "Screen stays on" : "Off — normal sleep")
                 .font(.headline)
                 .foregroundColor(awake.isOn ? .green : .secondary)
+
+            if awake.needsAccessibility {
+                Text("Allow Stay Alive in System Settings → Privacy & Security → Accessibility so it can click.")
+                    .font(.caption)
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.orange)
+            }
         }
         .padding(30)
-        .frame(width: 260, height: 260)
+        .frame(width: 260, height: 300)
     }
 }
 
