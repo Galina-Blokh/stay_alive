@@ -41,7 +41,9 @@ final class Awake: ObservableObject {
         guard CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyInput) >= idleThreshold
         else { return }
 
-        guard let pos = CGEvent(source: nil)?.location else { return }
+        // A held button (e.g. a paused drag) generates no events, so it looks idle: leave it alone.
+        guard !CGEventSource.buttonState(.combinedSessionState, button: .left),
+              let pos = CGEvent(source: nil)?.location else { return }
         let src = CGEventSource(stateID: .hidSystemState)
         func post(_ type: CGEventType, _ p: CGPoint) {
             CGEvent(mouseEventSource: src, mouseType: type, mouseCursorPosition: p, mouseButton: .left)?
