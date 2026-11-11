@@ -71,7 +71,10 @@ exact build: after every rebuild the switch in System Settings still looks on bu
 applies. Create a local signing certificate once and `build.sh` will use it automatically:
 
 ```sh
-cd /tmp
+# Runs in a temporary folder inside a subshell, so your current directory is unchanged.
+# Uses macOS's built-in /usr/bin/openssl, whose .p12 format Keychain imports directly.
+(
+cd "$(mktemp -d)" || exit 1
 cat > stayalive-cert.cnf <<'CNF'
 [req]
 distinguished_name=dn
@@ -84,10 +87,11 @@ basicConstraints=critical,CA:false
 keyUsage=critical,digitalSignature
 extendedKeyUsage=critical,codeSigning
 CNF
-openssl req -x509 -newkey rsa:2048 -nodes -keyout k.pem -out c.pem -days 3650 -config stayalive-cert.cnf
-openssl pkcs12 -export -legacy -inkey k.pem -in c.pem -out id.p12 -passout pass:stayalive
+/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout k.pem -out c.pem -days 3650 -config stayalive-cert.cnf &&
+/usr/bin/openssl pkcs12 -export -inkey k.pem -in c.pem -out id.p12 -passout pass:stayalive &&
 security import id.p12 -k ~/Library/Keychains/login.keychain-db -P stayalive -T /usr/bin/codesign
-rm k.pem c.pem id.p12 stayalive-cert.cnf
+rm -f k.pem c.pem id.p12 stayalive-cert.cnf
+)
 ```
 
 Then run `./build.sh`, remove every "Stay Alive" entry under Privacy & Security →
