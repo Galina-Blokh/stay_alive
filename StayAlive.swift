@@ -9,6 +9,8 @@ final class Awake: ObservableObject {
     @Published private(set) var needsAccessibility = false
     private var assertionID: IOPMAssertionID = 0
     private var timer: Timer?
+    private var permissionTimer: Timer?
+    private var hasPrompted = false
 
     private let interval: TimeInterval = 60      // how often to simulate activity
     private let idleThreshold: TimeInterval = 50 // only act if the user has been idle this long
@@ -25,14 +27,28 @@ final class Awake: ObservableObject {
         isOn = (result == kIOReturnSuccess)
         guard isOn else { return }
 
-        // Posting synthetic input requires the Accessibility permission.
-        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
+        // Posting synthetic input requires the Accessibility permission. Ask macOS once per launch;
+        // after that, poll quietly so the hint disappears as soon as the user grants it.
+        let opts = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: !hasPrompted] as CFDictionary
+        hasPrompted = true
         needsAccessibility = !AXIsProcessTrustedWithOptions(opts)
+        if needsAccessibility { watchPermission() }
         let t = Timer(timeInterval: interval, repeats: true) { [weak self] _ in
             self?.simulateActivity()
         }
         RunLoop.main.add(t, forMode: .common) // keep firing while a menu is open
         timer = t
+    }
+
+    private func watchPermission() {
+        permissionTimer?.invalidate()
+        let t = Timer(timeInterval: 2, repeats: true) { [weak self] t in
+            guard let self else { return t.invalidate() }
+            self.needsAccessibility = self.isOn && !AXIsProcessTrusted()
+            if !self.needsAccessibility { t.invalidate() }
+        }
+        RunLoop.main.add(t, forMode: .common)
+        permissionTimer = t
     }
 
     // Nudges the mouse 1 px and back, then clicks at the cursor. Skipped while the user is active.
@@ -69,6 +85,8 @@ final class Awake: ObservableObject {
         guard isOn else { return }
         timer?.invalidate()
         timer = nil
+        permissionTimer?.invalidate()
+        permissionTimer = nil
         IOPMAssertionRelease(assertionID)
         isOn = false
         needsAccessibility = false
@@ -103,10 +121,12 @@ struct ContentView: View {
                     .font(.caption)
                     .multilineTextAlignment(.center)
                     .foregroundColor(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(30)
-        .frame(width: 260, height: 300)
+        .frame(width: 260)
+        .frame(minHeight: 260)
     }
 }
 
