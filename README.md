@@ -95,7 +95,9 @@ rm -f k.pem c.pem id.p12 stayalive-cert.cnf
 ```
 
 Then run `./build.sh`, remove every "Stay Alive" entry under Privacy & Security →
-Accessibility, add `~/Applications/Stay Alive.app` again and switch it on. From then on
+Accessibility, add `~/Applications/Stay Alive.app` again and switch it on. (The **+** picker
+opens the main Applications folder; press ⌘⇧G and paste `~/Applications/Stay Alive.app`.)
+The first build asks to let `codesign` use the key; choose **Always Allow**. From then on
 rebuilds keep the permission.
 
 ## Uninstall
