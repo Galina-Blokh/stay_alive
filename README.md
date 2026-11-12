@@ -64,6 +64,42 @@ To see the assertion while it's on:
 pmset -g assertions | grep "Stay Alive"
 ```
 
+## Keep the Accessibility permission across rebuilds
+
+By default `build.sh` signs the app ad hoc, and macOS ties the Accessibility permission to that
+exact build: after every rebuild the switch in System Settings still looks on but no longer
+applies. Create a local signing certificate once and `build.sh` will use it automatically:
+
+```sh
+# Runs in a temporary folder inside a subshell, so your current directory is unchanged.
+# Uses macOS's built-in /usr/bin/openssl, whose .p12 format Keychain imports directly.
+(
+cd "$(mktemp -d)" || exit 1
+cat > stayalive-cert.cnf <<'CNF'
+[req]
+distinguished_name=dn
+x509_extensions=ext
+prompt=no
+[dn]
+CN=Stay Alive Local Signing
+[ext]
+basicConstraints=critical,CA:false
+keyUsage=critical,digitalSignature
+extendedKeyUsage=critical,codeSigning
+CNF
+/usr/bin/openssl req -x509 -newkey rsa:2048 -nodes -keyout k.pem -out c.pem -days 3650 -config stayalive-cert.cnf &&
+/usr/bin/openssl pkcs12 -export -inkey k.pem -in c.pem -out id.p12 -passout pass:stayalive &&
+security import id.p12 -k ~/Library/Keychains/login.keychain-db -P stayalive -T /usr/bin/codesign
+rm -f k.pem c.pem id.p12 stayalive-cert.cnf
+)
+```
+
+Then run `./build.sh`, remove every "Stay Alive" entry under Privacy & Security →
+Accessibility, add `~/Applications/Stay Alive.app` again and switch it on. (The **+** picker
+opens the main Applications folder; press ⌘⇧G and paste `~/Applications/Stay Alive.app`.)
+The first build asks to let `codesign` use the key; choose **Always Allow**. From then on
+rebuilds keep the permission.
+
 ## Uninstall
 
 Quit the app and delete `~/Applications/Stay Alive.app`.

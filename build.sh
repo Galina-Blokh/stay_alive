@@ -36,9 +36,20 @@ cat > "$APP/Contents/Info.plist" <<EOF
 </plist>
 EOF
 
-codesign --force --deep --sign - "$APP"
+# Sign with a stable local certificate when available, so macOS keeps the Accessibility
+# permission across rebuilds. Without it, fall back to ad-hoc signing (permission resets on
+# every build). See README: "Keep the Accessibility permission across rebuilds".
+IDENTITY="Stay Alive Local Signing"
+if security find-certificate -c "$IDENTITY" >/dev/null 2>&1; then
+  codesign --force --deep --sign "$IDENTITY" "$APP"
+else
+  echo "Note: '$IDENTITY' certificate not found; using ad-hoc signing."
+  codesign --force --deep --sign - "$APP"
+fi
 
 mkdir -p ~/Applications
 # Sync in place (not delete + copy) so a Dock pin keeps pointing at the app.
 rsync -a --delete "$APP/" ~/Applications/"Stay Alive.app/"
+# Keep only the installed copy, so System Settings lists a single "Stay Alive".
+rm -rf "$APP"
 echo "Installed: ~/Applications/Stay Alive.app"
